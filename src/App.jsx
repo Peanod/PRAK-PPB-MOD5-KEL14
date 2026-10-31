@@ -1,155 +1,47 @@
-import { useState } from 'react'
-import Header from './components/Header.jsx'
-import Footer from './components/Footer.jsx'
-import Catalog from './pages/Catalog.jsx'
-import FavoritesPage from './pages/FavoritesPage.jsx'
-import ProfilePage from './pages/ProfilePage.jsx'
-import CreateGunPage from './pages/CreateGunPage.jsx'
-import EditGunPage from './pages/EditGunPage.jsx'
-import GunDetail from './components/gun/GunDetail.jsx'
-import About from './pages/About.jsx'
-import Contact from './pages/Contact.jsx'
-import PWABadge from './components/PWABadge.jsx'
-import ConfirmModal from './components/modals/ConfirmModal.jsx'
-import SplashScreen from './components/common/SplashScreen.jsx'
-import gunService from './services/gunService.js'
-import './App.css'
+import React, { lazy, Suspense } from 'react';
+import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
+import { GunProvider, useGunContext } from './context/GunContext';
 
-function App() {
-  const [showSplash, setShowSplash] = useState(true)
-  const [tab, setTab] = useState('Catalog')
-  const [mode, setMode] = useState('list') // 'list' | 'create' | 'edit' | 'detail'
-  const [selectedGun, setSelectedGun] = useState(null)
-  const [editingGun, setEditingGun] = useState(null)
-  const [deleteTarget, setDeleteTarget] = useState(null)
-  const [deleting, setDeleting] = useState(false)
+// Challenge 2: Implementasi Lazy Load Halaman
+const Catalog = lazy(() => import('./pages/Catalog'));
+const GunDetail = lazy(() => import('./pages/GunDetail'));
+const Profile = lazy(() => import('./pages/Profile'));
+const EditProfile = lazy(() => import('./pages/EditProfile'));
+const Cart = lazy(() => import('./pages/Cart'));
 
-  // Unified navigation handler
-  const handleNavigate = (target, payload) => {
-    if (target === 'Create') {
-      setMode('create')
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-    } else if (target === 'Edit') {
-      setEditingGun(payload)
-      setMode('edit')
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-    } else if (target === 'Detail') {
-      setSelectedGun(payload)
-      setMode('detail')
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-    } else {
-      // Tab change
-      setTab(target)
-      setMode('list')
-      setSelectedGun(null)
-      setEditingGun(null)
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-    }
-  }
-
-  const handleBackToList = () => {
-    setMode('list')
-    setSelectedGun(null)
-    setEditingGun(null)
-  }
+function NavigationBar() {
+  const { cart } = useGunContext();
+  const totalItems = cart.reduce((acc, curr) => acc + curr.qty, 0);
 
   return (
-    <div className="shell">
-      {showSplash && (
-        <SplashScreen onFinish={() => setShowSplash(false)} />
-      )}
-
-      <Header
-        tab={mode === 'list' ? tab : ''}
-        onTab={(newTab) => handleNavigate(newTab)}
-        onNavigateCreate={() => handleNavigate('Create')}
-      />
-
-      <main className="main">
-        {/* Sub-page views */}
-        {mode === 'create' && (
-          <CreateGunPage
-            onBack={handleBackToList}
-            onSuccess={() => {
-              handleBackToList()
-              setTab('Catalog')
-            }}
-          />
-        )}
-
-        {mode === 'edit' && (
-          <EditGunPage
-            gun={editingGun}
-            gunId={editingGun?.id}
-            onBack={handleBackToList}
-            onSuccess={() => {
-              handleBackToList()
-              setTab('Catalog')
-            }}
-          />
-        )}
-
-        {mode === 'detail' && selectedGun && (
-          <GunDetail
-            gun={selectedGun}
-            onBack={handleBackToList}
-            onEdit={(g) => handleNavigate('Edit', g)}
-            onDelete={(g) => setDeleteTarget(g)}
-          />
-        )}
-
-        {/* Top-level Tabs */}
-        {mode === 'list' && (
-          <>
-            {tab === 'Catalog' && (
-              <Catalog
-                onNavigate={(destination, payload) => handleNavigate(destination, payload)}
-              />
-            )}
-            {tab === 'Favorites' && (
-              <FavoritesPage
-                onSelectGun={(g) => handleNavigate('Detail', g)}
-                onNavigateCatalog={() => setTab('Catalog')}
-              />
-            )}
-            {tab === 'Profile' && (
-              <ProfilePage onReplaySplash={() => setShowSplash(true)} />
-            )}
-            {tab === 'About' && <About />}
-            {tab === 'Contact' && <Contact />}
-          </>
-        )}
-      </main>
-
-      {/* Global Delete Confirmation */}
-      <ConfirmModal
-        open={Boolean(deleteTarget)}
-        title="Delete Hardware Record"
-        message={`Are you sure you want to delete "${deleteTarget?.name}"? This action cannot be undone.`}
-        confirmLabel="Delete"
-        danger
-        loading={deleting}
-        onConfirm={async () => {
-          if (!deleteTarget) return
-          try {
-            setDeleting(true)
-            await gunService.deleteGun(deleteTarget.id)
-            setDeleteTarget(null)
-            handleBackToList()
-            setTab('Catalog')
-          } catch (err) {
-            alert(err.message || 'Failed to delete record.')
-          } finally {
-            setDeleting(false)
-          }
-        }}
-        onCancel={() => setDeleteTarget(null)}
-      />
-
-      <PWABadge />
-      <Footer />
-    </div>
-  )
+    <nav style={{ display: 'flex', gap: '20px', padding: '15px 20px', background: '#1e293b', color: '#fff' }}>
+      <Link to="/" style={{ color: '#fff', textDecoration: 'none', fontWeight: 'bold' }}>Catalog</Link>
+      <Link to="/profile" style={{ color: '#fff', textDecoration: 'none', fontWeight: 'bold' }}>Profile</Link>
+      <Link to="/cart" style={{ color: '#fff', textDecoration: 'none', fontWeight: 'bold' }}>
+        Cart ({totalItems})
+      </Link>
+    </nav>
+  );
 }
 
-export default App
+export default function App() {
+  return (
+    <GunProvider>
+      <BrowserRouter>
+        <div style={{ minHeight: '100vh', background: '#f8fafc' }}>
+          <NavigationBar />
+          {/* Challenge 2: Suspense Fallback */}
+          <Suspense fallback={<div style={{ padding: '20px' }}>Loading Halaman...</div>}>
+            <Routes>
+              <Route path="/" element={<Catalog />} />
+              <Route path="/gun/:id" element={<GunDetail />} />
+              <Route path="/profile" element={<Profile />} />
+              <Route path="/profile/edit" element={<EditProfile />} />
+              <Route path="/cart" element={<Cart />} />
+            </Routes>
+          </Suspense>
+        </div>
+      </BrowserRouter>
+    </GunProvider>
+  );
+}

@@ -1,211 +1,55 @@
-import { useState, useMemo } from 'react'
-import { RefreshCw, Plus, Loader, AlertCircle, PackageOpen } from 'lucide-react'
-import { useGuns } from '../hooks/useGuns'
-import GUNS_LOCAL from '../data/guns'
-import GunCard from '../components/gun/GunCard'
-import GunDetail from '../components/gun/GunDetail'
-import AdvancedFilter from '../components/common/AdvancedFilter'
-import ConfirmModal from '../components/modals/ConfirmModal'
-import gunService from '../services/gunService'
-import {
-  matchesSearch,
-  matchesCategory,
-  sortItems,
-  extractCategories,
-} from '../utils/helpers'
+import React from 'react';
+import { useGunContext } from '../context/GunContext';
+import { Link } from 'react-router-dom';
 
-/**
- * Catalog page — the main product listing.
- *
- * Data source priority:
- *   1. Live API via useGuns()
- *   2. Local static array (GUNS_LOCAL) when the API is unreachable
- *
- * Features: search, category filter, sort, CRUD actions, detail modal.
- */
-export default function Catalog({ onNavigate }) {
-  // ---- API data ----
-  const { guns: apiGuns, loading, error, refetch } = useGuns({ limit: 50 })
-  const [useLocal, setUseLocal] = useState(false)
+export default function Catalog() {
+  const { guns, addToCart, toggleArchive } = useGunContext();
+  const activeGuns = guns.filter(g => !g.isDraft && !g.isArchived);
 
-  // Decide data source
-  const rawGuns = useMemo(() => {
-    if (useLocal || (error && apiGuns.length === 0)) {
-      // Enrich local data with synthetic ids so FavoriteButton and detail work
-      return GUNS_LOCAL.map((g, i) => ({ ...g, id: g.id || `local-${i}` }))
+  // Challenge 1: Button Share Link Unik
+  const handleShare = (gun, e) => {
+    e.preventDefault();
+    const shareUrl = `${window.location.origin}/gun/${gun.id}`;
+    if (navigator.share) {
+      navigator.share({
+        title: gun.name,
+        text: `Cek item senjata ${gun.name} di katalog ini!`,
+        url: shareUrl,
+      }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(shareUrl);
+      alert(`Tautan unik untuk ${gun.name} berhasil disalin ke clipboard!\n${shareUrl}`);
     }
-    return apiGuns
-  }, [apiGuns, error, useLocal])
+  };
 
-  // ---- filters / sort ----
-  const [search, setSearch] = useState('')
-  const [activeCategory, setActiveCategory] = useState('All')
-  const [sortKey, setSortKey] = useState('name')
-  const [sortOrder, setSortOrder] = useState('asc')
-
-  const categories = useMemo(() => extractCategories(rawGuns), [rawGuns])
-
-  const filteredGuns = useMemo(() => {
-    let result = rawGuns.filter(
-      (g) => matchesSearch(g, search) && matchesCategory(g, activeCategory),
-    )
-    return sortItems(result, sortKey, sortOrder)
-  }, [rawGuns, search, activeCategory, sortKey, sortOrder])
-
-  // ---- detail view ----
-  const [selectedGun, setSelectedGun] = useState(null)
-
-  // ---- delete ----
-  const [deleteTarget, setDeleteTarget] = useState(null)
-  const [deleting, setDeleting] = useState(false)
-  const [deleteError, setDeleteError] = useState('')
-
-  const handleDelete = async () => {
-    if (!deleteTarget) return
-    try {
-      setDeleting(true)
-      setDeleteError('')
-      await gunService.deleteGun(deleteTarget.id)
-      setDeleteTarget(null)
-      refetch()
-    } catch (err) {
-      setDeleteError(err.message || 'Failed to delete.')
-    } finally {
-      setDeleting(false)
-    }
-  }
-
-  // ---- If viewing a single product detail ----
-  if (selectedGun) {
-    return (
-      <GunDetail
-        gun={selectedGun}
-        onBack={() => setSelectedGun(null)}
-        onEdit={(g) => onNavigate && onNavigate('Edit', g)}
-        onDelete={(g) => { setSelectedGun(null); setDeleteTarget(g) }}
-      />
-    )
-  }
-
-  // ---- Main catalog view ----
   return (
-    <>
-      <section className="masthead">
-        <h1 className="display">Hardware, by the spec sheet.</h1>
-        <p className="lede">
-          A small armory of pistols, rifles, and shotguns. Every piece listed
-          with its type, caliber, and price — nothing else.
-        </p>
-      </section>
-
-      <section>
-        <div className="list-head">
-          <h2>Current stock</h2>
-          <div className="list-head-right">
-            <span className="count">
-              {filteredGuns.length} piece{filteredGuns.length !== 1 ? 's' : ''}
-            </span>
-            {onNavigate && (
-              <button
-                type="button"
-                className="btn btn--primary btn--sm"
-                onClick={() => onNavigate('Create')}
-              >
-                <Plus size={16} /> Add
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Filters */}
-        <AdvancedFilter
-          search={search}
-          onSearch={setSearch}
-          categories={categories}
-          activeCategory={activeCategory}
-          onCategory={setActiveCategory}
-          sortKey={sortKey}
-          sortOrder={sortOrder}
-          onSort={({ key, order }) => { setSortKey(key); setSortOrder(order) }}
-        />
-
-        {/* States */}
-        {loading && (
-          <div className="state-box">
-            <Loader size={28} className="spin" />
-            <p>Loading products…</p>
-          </div>
-        )}
-
-        {!loading && error && !useLocal && (
-          <div className="state-box state-box--error">
-            <AlertCircle size={28} />
-            <p>{error}</p>
-            <div className="state-box__actions">
-              <button type="button" className="btn btn--outline" onClick={refetch}>
-                <RefreshCw size={16} /> Retry
-              </button>
-              <button
-                type="button"
-                className="btn btn--outline"
-                onClick={() => setUseLocal(true)}
-              >
-                View Local Catalog
-              </button>
+    <div style={{ padding: '20px' }}>
+      <h2 style={{ marginBottom: '20px' }}>Katalog Senjata</h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '20px' }}>
+        {activeGuns.map(gun => (
+          <div key={gun.id} style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '15px', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+            {/* Challenge 2: Lazy Load Image */}
+            <img 
+              src={gun.image} 
+              alt={gun.name} 
+              loading="lazy" 
+              style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '6px', marginBottom: '10px' }} 
+            />
+            <h3 style={{ fontSize: '18px', marginBottom: '5px' }}>{gun.name}</h3>
+            <p style={{ fontWeight: 'bold', color: '#2563eb', marginBottom: '15px' }}>${gun.price}</p>
+            
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <Link to={`/gun/${gun.id}`} style={{ padding: '6px 12px', background: '#3b82f6', color: '#fff', borderRadius: '4px', textDecoration: 'none', fontSize: '14px' }}>Detail</Link>
+              {/* Challenge 1 */}
+              <button onClick={(e) => handleShare(gun, e)} style={{ padding: '6px 12px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '14px' }}>Share</button>
+              {/* Challenge 9 */}
+              <button onClick={() => addToCart(gun)} style={{ padding: '6px 12px', background: '#f59e0b', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '14px' }}>+ Cart</button>
+              {/* Challenge 6 */}
+              <button onClick={() => toggleArchive(gun.id)} style={{ padding: '6px 12px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '14px' }}>Arsipkan</button>
             </div>
           </div>
-        )}
-
-        {!loading && filteredGuns.length === 0 && !error && (
-          <div className="state-box">
-            <PackageOpen size={28} />
-            <p>No products match your search.</p>
-          </div>
-        )}
-
-        {/* Product grid */}
-        {filteredGuns.length > 0 && (
-          <ul className="stock">
-            {filteredGuns.map((gun) => (
-              <GunCard
-                key={gun.id || gun.name}
-                gun={gun}
-                onSelect={setSelectedGun}
-                onEdit={onNavigate ? (g) => onNavigate('Edit', g) : undefined}
-                onDelete={setDeleteTarget}
-              />
-            ))}
-          </ul>
-        )}
-
-        {useLocal && (
-          <p className="local-notice">
-            Showing local catalog (server unavailable).{' '}
-            <button
-              type="button"
-              className="link-btn"
-              onClick={() => { setUseLocal(false); refetch() }}
-            >
-              Retry server
-            </button>
-          </p>
-        )}
-      </section>
-
-      {/* Delete confirmation */}
-      <ConfirmModal
-        open={!!deleteTarget}
-        title="Delete Product"
-        message={`Are you sure you want to delete "${deleteTarget?.name}"? This action cannot be undone.`}
-        confirmLabel="Delete"
-        danger
-        loading={deleting}
-        onConfirm={handleDelete}
-        onCancel={() => { setDeleteTarget(null); setDeleteError('') }}
-      />
-      {deleteError && (
-        <div className="toast toast--error">{deleteError}</div>
-      )}
-    </>
-  )
+        ))}
+      </div>
+    </div>
+  );
 }
